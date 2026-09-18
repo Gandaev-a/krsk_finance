@@ -1,0 +1,49 @@
+AddDefaultCharset UTF-8
+DirectoryIndex index.html
+Options -Indexes
+
+# Служебные файлы недоступны из браузера: журнал заявок, настройки с токеном
+<FilesMatch "(\.(csv|log|md|sh)|^config\..*\.php)$">
+  Require all denied
+</FilesMatch>
+
+RewriteEngine On
+RewriteBase /
+
+# BEGIN HTTPS
+# Блок включается только когда выпущен сертификат — deploy.sh вырезает его до этого.
+
+# Без www
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+# На Timeweb SSL снимает nginx перед Apache, поэтому %{HTTPS} всегда off —
+# признак защищённого соединения приходит в заголовке X-HTTPS.
+# Без этой проверки редирект уходит в бесконечный цикл.
+RewriteCond %{HTTP:X-HTTPS} !1
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# END HTTPS
+
+# Кэш статики
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css               "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType image/svg+xml          "access plus 1 month"
+  ExpiresByType image/webp             "access plus 1 month"
+  ExpiresByType text/html              "access plus 0 seconds"
+</IfModule>
+
+# Сжатие
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript image/svg+xml
+</IfModule>
+
+# Базовые заголовки безопасности
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>

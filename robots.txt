@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /send.php
+Disallow: /leads.csv
+Disallow: /consent.html
+
+Sitemap: https://avtozalog-krsk.ru/sitemap.xml
