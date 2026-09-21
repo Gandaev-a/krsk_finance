@@ -10,10 +10,7 @@ set -u
 cd "$(dirname "$0")" || exit 1
 
 DOMAIN="avtozalog-krsk.ru"
-# yandex_XXXXXXXXXXXXXXXX.html — файл-подтверждение прав в Яндекс.Вебмастере.
-# Для этого домена его ещё нет: заведите сайт в Вебмастере, скачайте файл,
-# положите его рядом с index.html и добавьте его имя в список FILES ниже.
-FILES="index.html privacy.html consent.html terms.html tariffs.html dogovor.html docs.css send.php robots.txt sitemap.xml og.png favicon.ico favicon.svg favicon-32.png icon-192.png apple-touch-icon.png"
+FILES="index.html privacy.html consent.html terms.html tariffs.html dogovor.html docs.css send.php robots.txt sitemap.xml og.png favicon.ico favicon.svg favicon-32.png icon-192.png apple-touch-icon.png yandex_1f64a2abd1c6a83e.html"
 
 bold() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
