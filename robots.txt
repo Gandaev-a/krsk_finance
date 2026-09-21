@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
-Disallow: /send.php
+Disallow: /submit.php
 Disallow: /leads.csv
 Disallow: /consent.html
 

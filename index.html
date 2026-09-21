@@ -969,7 +969,7 @@ footer a:hover{color:#fff}
       if (qs.get(k)) data.append(k, qs.get(k));
     });
 
-    fetch('/send.php', {method:'POST', body:data})
+    fetch('/submit.php', {method:'POST', body:data})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(){
         status.style.color = '';

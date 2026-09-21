@@ -10,7 +10,7 @@ set -u
 cd "$(dirname "$0")" || exit 1
 
 DOMAIN="avtozalog-krsk.ru"
-FILES="index.html privacy.html consent.html terms.html tariffs.html dogovor.html docs.css send.php robots.txt sitemap.xml og.png favicon.ico favicon.svg favicon-32.png icon-192.png apple-touch-icon.png yandex_1f64a2abd1c6a83e.html"
+FILES="index.html privacy.html consent.html terms.html tariffs.html dogovor.html docs.css submit.php robots.txt sitemap.xml og.png favicon.ico favicon.svg favicon-32.png icon-192.png apple-touch-icon.png yandex_1f64a2abd1c6a83e.html"
 
 bold() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -147,7 +147,23 @@ case "$ANS" in
       bad "адрес почты указан с ошибкой"; exit 1
     fi
     MAIL_FROM=""
-    [ -n "$MAIL_TO" ] && MAIL_FROM="info@$DOMAIN"
+    SMTP_HOST=""; SMTP_PORT=465; SMTP_SECURE="ssl"; SMTP_USER=""; SMTP_PASS=""
+    if [ -n "$MAIL_TO" ]; then
+      MAIL_FROM="info@$DOMAIN"
+      echo "  Письма надёжнее доходят через SMTP-авторизацию, чем через голую отправку без неё."
+      echo "  Данные — в панели хостинга, раздел «Почта» → настройки для почтовых клиентов."
+      read -r -p "  SMTP-хост (Enter — пропустить, будет менее надёжная отправка): " SMTP_HOST
+      SMTP_HOST=$(printf '%s' "$SMTP_HOST" | tr -d '[:space:]')
+      if [ -n "$SMTP_HOST" ]; then
+        read -r -p "  SMTP-порт [465]: " SMTP_PORT
+        SMTP_PORT=${SMTP_PORT:-465}
+        read -r -p "  Шифрование ssl/tls [ssl]: " SMTP_SECURE
+        SMTP_SECURE=${SMTP_SECURE:-ssl}
+        read -r -p "  SMTP-логин [$MAIL_FROM]: " SMTP_USER
+        SMTP_USER=${SMTP_USER:-$MAIL_FROM}
+        read -r -s -p "  SMTP-пароль (пароль от этого почтового ящика, ввод не отображается): " SMTP_PASS; echo
+      fi
+    fi
 
     # Из России Telegram часто блокируют. SMS — запасной канал, который работает всегда.
     read -r -p "SMS о заявках через sms.ru — api_id из кабинета (Enter — не нужно): " SMS_API_ID
@@ -199,12 +215,17 @@ return [
     'tg_ipv6'   => $TG_IPV6,
     'mail_to'   => '$MAIL_TO',
     'mail_from' => '$MAIL_FROM',
+    'smtp_host'   => '$SMTP_HOST',
+    'smtp_port'   => $SMTP_PORT,
+    'smtp_secure' => '$SMTP_SECURE',
+    'smtp_user'   => '$SMTP_USER',
+    'smtp_pass'   => '$SMTP_PASS',
     'sms_api_id' => '$SMS_API_ID',
     'sms_to'     => '$SMS_TO',
     'min_seconds_between' => 20,
 ];
 EOF
-    unset TG_TOKEN
+    unset TG_TOKEN SMTP_PASS
     put "$TMP/config.local.php" config.local.php
     ;;
 esac
@@ -249,12 +270,46 @@ $t4 = tg_try($cfg, false);
 echo 'TG4 ' . $t4 . "\n";
 echo 'TG6 ' . ($t4 === 'OK' ? 'SKIP' : tg_try($cfg, true)) . "\n";
 
-if (!empty($cfg['mail_to']) && !empty($cfg['mail_from'])) {
+function smtp_probe($host, $port, $secure, $user, $pass, $fromEmail, $to) {
+    $errno = 0; $errstr = '';
+    $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true]]);
+    $fp = @stream_socket_client((($secure === 'ssl') ? 'ssl://' : 'tcp://') . $host . ':' . $port, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx);
+    if (!$fp) return "FAIL connect: $errstr ($errno)";
+    stream_set_timeout($fp, 12);
+    $r = function () use ($fp) {
+        $d = ''; $c = '';
+        do { $l = fgets($fp, 1000); if ($l === false) break; $d .= $l; $c = substr($l, 0, 3); } while (isset($l[3]) && $l[3] === '-');
+        return [$c, trim($d)];
+    };
+    $w = function ($s) use ($fp) { fwrite($fp, $s . "\r\n"); };
+    list($c) = $r(); if ($c !== '220') { fclose($fp); return 'FAIL greeting'; }
+    $w('EHLO ' . $host); list($c) = $r(); if ($c !== '250') { fclose($fp); return 'FAIL ehlo'; }
+    if ($secure === 'tls') {
+        $w('STARTTLS'); list($c) = $r(); if ($c !== '220') { fclose($fp); return 'FAIL starttls'; }
+        if (!stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { fclose($fp); return 'FAIL tls-handshake'; }
+        $w('EHLO ' . $host); list($c) = $r();
+    }
+    $w('AUTH LOGIN'); list($c) = $r(); if ($c !== '334') { fclose($fp); return 'FAIL auth-login'; }
+    $w(base64_encode($user)); list($c) = $r(); if ($c !== '334') { fclose($fp); return 'FAIL auth-user'; }
+    $w(base64_encode($pass)); list($c, $resp) = $r(); if ($c !== '235') { fclose($fp); return "FAIL auth-pass: $resp"; }
+    $w("MAIL FROM:<$fromEmail>"); list($c) = $r(); if ($c !== '250') { fclose($fp); return 'FAIL mail-from'; }
+    $w("RCPT TO:<$to>"); list($c) = $r(); if ($c !== '250' && $c !== '251') { fclose($fp); return 'FAIL rcpt-to'; }
+    $w('DATA'); list($c) = $r(); if ($c !== '354') { fclose($fp); return 'FAIL data'; }
+    $utf = function ($s) { return '=?UTF-8?B?' . base64_encode($s) . '?='; };
+    $h  = 'From: ' . $utf('Сайт') . " <$fromEmail>\r\nTo: <$to>\r\nSubject: " . $utf('Проверка уведомлений с сайта') . "\r\nDate: " . date('r') . "\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n";
+    $body = "Это проверка почтовых уведомлений с сайта.\r\nЕсли письмо пришло - заявки тоже будут приходить сюда.";
+    $w($h . "\r\n" . $body . "\r\n."); list($c) = $r(); $w('QUIT'); fclose($fp);
+    return $c === '250' ? 'SENT' : "FAIL send:$c";
+}
+
+if (!empty($cfg['mail_to']) && !empty($cfg['smtp_host']) && !empty($cfg['smtp_user']) && !empty($cfg['smtp_pass'])) {
+    echo 'MAIL ' . smtp_probe($cfg['smtp_host'], $cfg['smtp_port'] ?? 465, $cfg['smtp_secure'] ?? 'ssl', $cfg['smtp_user'], $cfg['smtp_pass'], $cfg['mail_from'] ?: $cfg['smtp_user'], $cfg['mail_to']) . "\n";
+} elseif (!empty($cfg['mail_to']) && !empty($cfg['mail_from'])) {
     $utf = function ($s) { return '=?UTF-8?B?' . base64_encode($s) . '?='; };
     $h  = 'From: ' . $utf('Сайт') . ' <' . $cfg['mail_from'] . ">\r\n";
     $h .= "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n";
     $body = "Это проверка почтовых уведомлений с сайта.\nЕсли письмо пришло — заявки тоже будут приходить сюда.";
-    echo 'MAIL ' . (@mail($cfg['mail_to'], $utf('Проверка уведомлений с сайта'), $body, $h) ? 'SENT' : 'FAIL') . "\n";
+    echo 'MAIL ' . (@mail($cfg['mail_to'], $utf('Проверка уведомлений с сайта'), $body, $h) ? 'SENT (без SMTP-авторизации, менее надёжно)' : 'FAIL') . "\n";
 } else {
     echo "MAIL SKIP\n";
 }
@@ -283,8 +338,8 @@ PHP
       "TG6 SKIP"|"TG6 NO_CONFIG") ;;
       "TG4 FAIL"*)      warn "Telegram по IPv4 недоступен: ${line#TG4 FAIL }" ;;
       "TG6 FAIL"*)      bad  "Telegram недоступен и по IPv6 — нужен другой канал уведомлений" ;;
-      "MAIL SENT")      ok "письмо на почту отправлено — проверьте ящик, в том числе «Спам»" ;;
-      "MAIL FAIL")      bad "сервер не смог отправить письмо" ;;
+      "MAIL SENT"*)     ok "письмо на почту отправлено — проверьте ящик, в том числе «Спам»: ${line#MAIL SENT}" ;;
+      "MAIL FAIL"*)     bad "сервер не смог отправить письмо: ${line#MAIL FAIL}" ;;
       "MAIL SKIP")      warn "почта не настроена" ;;
       "SMS CONFIGURED") ok "SMS-уведомления подключены" ;;
     esac
@@ -326,7 +381,7 @@ if [ "$code" = 200 ]; then
   case "$ANS" in
     n*|N*|н*|Н*) ;;
     *)
-      res=$(curl -s -m 20 "$URL/send.php" \
+      res=$(curl -s -m 20 "$URL/submit.php" \
         --data-urlencode "name=Тестовая заявка" \
         --data-urlencode "phone=+7 (900) 000-00-00" \
         --data-urlencode "car=Проверка после выкладки" \
