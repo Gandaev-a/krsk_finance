@@ -141,12 +141,20 @@ if ($SMS_API_ID && $SMS_TO) {
 }
 
 // ---- Почта ----
+// DEBUG-ВРЕМЕННО: $mailOk/$mailErr фиксируют, что реально ответил mail(), чтобы не гадать.
+$mailOk = false;
+$mailErr = null;
 if ($MAIL_TO && $MAIL_FROM) {
     $utf = function ($s) { return '=?UTF-8?B?' . base64_encode($s) . '?='; };
     $headers  = "From: " . $utf('Сайт') . " <{$MAIL_FROM}>\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
-    if (@mail($MAIL_TO, $utf('Заявка с сайта: ' . $phone), $text, $headers)) $sent = true;
+    $mailOk = mail($MAIL_TO, $utf('Заявка с сайта: ' . $phone), $text, $headers);
+    if (!$mailOk) {
+        $e = error_get_last();
+        $mailErr = $e ? $e['message'] : 'mail() вернул false без деталей ошибки';
+    }
+    if ($mailOk) $sent = true;
 }
 
 // ---- Журнал ----
@@ -154,16 +162,34 @@ if ($MAIL_TO && $MAIL_FROM) {
 $csvSafe = function ($v) {
     return preg_match('/^[=+\-@]/', (string)$v) ? "'" . $v : $v;
 };
+// DEBUG-ВРЕМЕННО: $csvOk/$csvErr фиксируют, удалась ли запись в журнал и куда.
+$csvOk = false;
+$csvErr = null;
 if ($fh = @fopen($LOG_FILE, 'a')) {
     $row = [date('Y-m-d H:i:s'), $name, $phone, $car, $sum, $cSum, $cTerm, $page, implode(' ', $utm), $ip];
     fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
     fclose($fh);
+    $csvOk = true;
     $sent = true;
+} else {
+    $e = error_get_last();
+    $csvErr = $e ? $e['message'] : 'fopen() не удалось, без деталей ошибки';
 }
+
+// DEBUG-ВРЕМЕННО: блок диагностики. Удалить вместе с полем 'debug' ниже, когда разберёмся с доставкой.
+$debug = [
+    'mail_attempted' => (bool)($MAIL_TO && $MAIL_FROM),
+    'mail_ok'        => $mailOk,
+    'mail_error'     => $mailErr,
+    'csv_ok'         => $csvOk,
+    'csv_error'      => $csvErr,
+    'log_file'       => $LOG_FILE,
+    'log_dir_writable' => is_writable($logDir),
+];
 
 if (!$sent) {
     http_response_code(500);
-    exit(json_encode(['ok' => false, 'error' => 'delivery']));
+    exit(json_encode(['ok' => false, 'error' => 'delivery', 'debug' => $debug]));
 }
 
-echo json_encode(['ok' => true]);
+echo json_encode(['ok' => true, 'debug' => $debug]);
