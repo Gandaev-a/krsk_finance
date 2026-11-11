@@ -48,7 +48,7 @@
   --paper-2:#E5ECF1;
   --ink:#0D1B24;
   --ink-2:#33454F;
-  --muted:#66787F;
+  --muted:#5E7078;
   --line:#DCE4E9;
   --line-2:#C7D3DA;
   --blue:#0E4C74;
@@ -109,7 +109,7 @@ header{
 }
 .logo-text{font-family:"Unbounded",sans-serif;font-size:15px;font-weight:700;letter-spacing:-.02em}
 .nav-links{display:flex;gap:24px;font-size:14.5px;font-weight:500;color:var(--ink-2)}
-.nav-links a{text-decoration:none}
+.nav-links a{text-decoration:none;padding-block:4px}
 .nav-links a:hover{color:var(--blue)}
 .nav-phone{font-weight:700;font-size:16px;text-decoration:none;white-space:nowrap}
 .nav-phone small{display:block;font-weight:500;font-size:11.5px;color:var(--muted);letter-spacing:.02em}
@@ -146,11 +146,13 @@ header{
 .field-val{font-family:"Manrope",sans-serif;font-weight:800;font-size:19px;letter-spacing:-.02em}
 .field-hint{font-size:11.5px;color:var(--muted);margin-top:7px;display:block}
 input[type=range]{
-  -webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;
-  background:var(--paper-2);outline:none;margin:0;cursor:pointer;
+  -webkit-appearance:none;appearance:none;width:100%;height:28px;
+  background:transparent;margin:0;cursor:pointer;
 }
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--paper-2)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--paper-2)}
 input[type=range]::-webkit-slider-thumb{
-  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;margin-top:-8px;
   background:var(--blue);border:3px solid #fff;box-shadow:var(--shadow-m);cursor:grab;
 }
 input[type=range]::-moz-range-thumb{
@@ -179,7 +181,7 @@ input[type=range]::-moz-range-thumb{
 
 /* ---------- trust strip ---------- */
 .trust{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--white)}
-.trust-grid{display:grid;grid-template-columns:repeat(4,1fr);}
+.trust-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));}
 .trust-item{padding:26px 24px;border-right:1px solid var(--line)}
 .trust-item:last-child{border-right:none}
 .trust-item b{
@@ -294,8 +296,9 @@ footer{background:var(--ink);color:#92A3AF;padding:52px 0 40px;font-size:14px}
 footer h4{font-family:"Manrope",sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#EAF1F6;margin:0 0 14px;font-weight:700}
 footer a{color:#92A3AF;text-decoration:none}
 footer a:hover{color:#fff}
-.foot-links{display:flex;flex-direction:column;gap:9px}
-.foot-legal{padding-top:24px;font-size:12.5px;line-height:1.6;color:#5F7180}
+.foot-links{display:flex;flex-direction:column;gap:3px}
+.foot-links a{padding-block:3px}
+.foot-legal{padding-top:24px;font-size:12.5px;line-height:1.6;color:#7A8C99}
 .foot-legal p{margin:0 0 10px}
 .psk{
   margin-top:16px;padding:14px 16px;border:1px solid #1C2E3A;border-radius:5px;
@@ -337,7 +340,7 @@ footer a:hover{color:#fff}
   .hero-grid{grid-template-columns:1fr;gap:36px}
   .calc{max-width:520px}
   .form-grid{grid-template-columns:1fr;gap:32px}
-  .trust-grid{grid-template-columns:repeat(2,1fr)}
+  .trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .trust-item:nth-child(2){border-right:none}
   .trust-item:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .g3,.cmp-grid,.steps{grid-template-columns:1fr}
@@ -362,6 +365,10 @@ footer a:hover{color:#fff}
   .res-main{font-size:14px}
   .field-val{font-size:17px}
   .calc-body{padding:18px 18px 22px}
+  .nav{gap:16px}
+  .logo-text{font-size:13px;white-space:nowrap}
+  .trust-item{padding:20px 16px}
+  .trust-item b{font-size:18px}
 }
 </style>
 </head>
