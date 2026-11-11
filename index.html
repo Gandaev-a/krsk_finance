@@ -901,7 +901,8 @@ footer a:hover{color:#fff}
     var s = +sum.value;
     var r = rateOf(s);
     var i = r / 100;
-    var pay = annuity(s, i, term);
+    // в договоре платёж целый в рублях — итог считаем из него, иначе расходится с примером в тарифах
+    var pay = Math.round(annuity(s, i, term));
     var total = pay * term;
     var psk = (Math.pow(1 + i, 12) - 1) * 100;
 
