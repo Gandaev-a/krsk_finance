@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Займ под залог авто и ПТС в Красноярске — деньги за 1 час | Енисей Финанс</title>
+<script>if(location.protocol==="http:"&&/(^|\.)avtozalog-krsk\.ru$/.test(location.hostname))location.replace("https://"+location.host+location.pathname+location.search+location.hash);</script>
 <meta name="description" content="Займ под залог автомобиля и ПТС в Красноярске до 3 000 000 ₽ за 1 час. Машина остаётся у вас, без справок и поручителей, договор у нотариуса, залог в реестре ФНП.">
 <meta property="og:title" content="Займ под залог авто и ПТС в Красноярске — деньги за 1 час">
 <meta property="og:description" content="До 3 000 000 ₽ за час под залог автомобиля. Машина остаётся у вас. Договор у нотариуса, залог в реестре ФНП.">
@@ -933,9 +934,32 @@ footer a:hover{color:#fff}
   render();
 
   // ---- форма ----
-  function goal(name){
-    if (window.ym) ym(METRIKA_ID, 'reachGoal', name);
+  function goal(name, params){
+    if (window.ym) ym(METRIKA_ID, 'reachGoal', name, params);
   }
+
+  // Рекламные метки запоминаются на 90 дней: если человек пришёл из рекламы,
+  // а заявку оставил позже, зайдя напрямую, источник не теряется.
+  var ATTR_KEYS = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','yclid'];
+  var ATTR_TTL = 90 * 24 * 3600 * 1000;
+  var attr = {};
+  (function(){
+    var qs = new URLSearchParams(location.search), fresh = {}, has = false;
+    ATTR_KEYS.forEach(function(k){ var v = qs.get(k); if (v) { fresh[k] = v.slice(0, 200); has = true; } });
+    try {
+      if (has) {
+        fresh.ts = Date.now();
+        localStorage.setItem('attr', JSON.stringify(fresh));
+        attr = fresh;
+      } else {
+        var saved = JSON.parse(localStorage.getItem('attr') || 'null');
+        if (saved && Date.now() - saved.ts < ATTR_TTL) attr = saved;
+      }
+    } catch(e) { if (has) attr = fresh; }
+  })();
+
+  var clientId = '';
+  if (window.ym) ym(METRIKA_ID, 'getClientID', function(id){ clientId = id || ''; });
 
   // звонок — отдельная цель: в нише половина обращений идёт по телефону
   document.addEventListener('click', function(e){
@@ -972,19 +996,18 @@ footer a:hover{color:#fff}
     data.append('calc_term', document.getElementById('termVal').textContent);
     data.append('calc_car',  document.getElementById('carVal').textContent);
     data.append('page', location.pathname + location.search);
-    var qs = new URLSearchParams(location.search);
-    ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
-      if (qs.get(k)) data.append(k, qs.get(k));
-    });
+    ATTR_KEYS.forEach(function(k){ if (attr[k]) data.append(k, attr[k]); });
+    if (attr.ts) data.append('attr_date', new Date(attr.ts).toISOString().slice(0, 10));
+    if (clientId) data.append('client_id', clientId);
 
     fetch('/submit.php', {method:'POST', body:data})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(){
+      .then(function(res){
         status.style.color = '';
-        status.textContent = 'Заявка отправлена. Перезвоним в течение 15 минут.';
+        status.textContent = (res && res.id ? 'Заявка ' + res.id + ' отправлена.' : 'Заявка отправлена.') + ' Перезвоним в течение 15 минут.';
         status.style.display = 'block';
         btn.textContent = 'Отправлено';
-        goal('lead');
+        goal('lead', res && res.id ? {lead_id: res.id} : undefined);
       })
       .catch(function(){
         status.style.color = '#B5701F';
@@ -997,8 +1020,10 @@ footer a:hover{color:#fff}
 
   // маска телефона
   document.getElementById('fphone').addEventListener('input', function(e){
-    var d = e.target.value.replace(/\D/g,'').replace(/^8/,'7').slice(0,11);
+    var d = e.target.value.replace(/\D/g,'');
     if (!d.length){ e.target.value = ''; return; }
+    // номер, набранный без +7 или 8 (сразу с 9), не теряет первую цифру
+    d = (d[0] === '8' ? '7' + d.slice(1) : d[0] === '7' ? d : '7' + d).slice(0,11);
     var out = '+7';
     if (d.length > 1) out += ' (' + d.slice(1,4);
     if (d.length >= 5) out += ') ' + d.slice(4,7);

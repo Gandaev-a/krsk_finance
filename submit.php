@@ -36,10 +36,10 @@ $SMTP_SECURE = $cfg['smtp_secure'] ?? 'ssl';   // 'ssl' (обычно порт 4
 $SMTP_USER   = $cfg['smtp_user']   ?? '';
 $SMTP_PASS   = $cfg['smtp_pass']   ?? '';
 
-// Журнал заявок — на уровень выше public_html, куда веб-сервер не отдаёт файлы.
-// Если туда писать нельзя, остаётся рядом; там его закрывает .htaccess.
+// Журнал заявок — по возможности на уровень выше public_html, куда веб-сервер не отдаёт
+// файлы; иначе рядом со скриптом, где .csv закрыт правилом в .htaccess.
+$LOG_DIRS = [dirname(__DIR__), __DIR__];
 $logDir   = is_writable(dirname(__DIR__)) ? dirname(__DIR__) : __DIR__;
-$LOG_FILE = $logDir . '/leads.csv';
 
 date_default_timezone_set('Asia/Krasnoyarsk');   // Красноярск живёт по красноярскому времени (МСК+4, UTC+7) — не по московскому
 header('Content-Type: application/json; charset=utf-8');
@@ -69,7 +69,7 @@ function clean($key, $limit = 200) {
 }
 
 // Минимальный SMTP-клиент с AUTH LOGIN, без внешних библиотек.
-function smtp_send($host, $port, $secure, $user, $pass, $fromEmail, $fromName, $to, $subject, $bodyText) {
+function smtp_send($host, $port, $secure, $user, $pass, $fromEmail, $fromName, array $toList, $subject, $bodyText) {
     $errno = 0; $errstr = '';
     $ctx = stream_context_create(['ssl' => [
         'verify_peer' => true, 'verify_peer_name' => true, 'allow_self_signed' => false,
@@ -124,9 +124,11 @@ function smtp_send($host, $port, $secure, $user, $pass, $fromEmail, $fromName, $
     list($code, $resp) = $readResp();
     if ($code !== '250') { fclose($fp); return ['ok' => false, 'error' => "mail-from: $resp"]; }
 
-    $cmd("RCPT TO:<{$to}>");
-    list($code, $resp) = $readResp();
-    if ($code !== '250' && $code !== '251') { fclose($fp); return ['ok' => false, 'error' => "rcpt-to: $resp"]; }
+    foreach ($toList as $to) {
+        $cmd("RCPT TO:<{$to}>");
+        list($code, $resp) = $readResp();
+        if ($code !== '250' && $code !== '251') { fclose($fp); return ['ok' => false, 'error' => "rcpt-to {$to}: $resp"]; }
+    }
 
     $cmd('DATA');
     list($code, $resp) = $readResp();
@@ -134,7 +136,7 @@ function smtp_send($host, $port, $secure, $user, $pass, $fromEmail, $fromName, $
 
     $utf = function ($s) { return '=?UTF-8?B?' . base64_encode($s) . '?='; };
     $headers = "From: " . $utf($fromName) . " <{$fromEmail}>\r\n"
-             . "To: <{$to}>\r\n"
+             . "To: " . implode(', ', array_map(function ($a) { return "<{$a}>"; }, $toList)) . "\r\n"
              . "Subject: " . $utf($subject) . "\r\n"
              . "Date: " . date('r') . "\r\n"
              . "MIME-Version: 1.0\r\n"
@@ -177,15 +179,22 @@ if (($_POST['consent'] ?? '') !== '1') {
 
 $_SESSION['last_lead'] = $now;
 
+// Номер заявки: по нему заявку ищут в почте, журнале и CRM партнёра.
+$leadId = 'KRSK-' . date('ymd') . '-' . strtoupper(bin2hex(random_bytes(2)));
+
 $ip  = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
 $utm = [];
 foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as $k) {
     if (!empty($_POST[$k])) $utm[] = $k . '=' . clean($k, 60);
 }
+$yclid    = preg_replace('/[^0-9A-Za-z_-]/', '', clean('yclid', 64));
+$clientId = preg_replace('/\D/', '', clean('client_id', 40));
+$attrDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', clean('attr_date', 10)) ? clean('attr_date', 10) : '';
 
 $lines = [
     "🚗 Новая заявка с сайта",
     "",
+    "Заявка: "   . $leadId,
     "Имя: "      . ($name  !== '' ? $name  : '—'),
     "Телефон: "  . $phone,
     "Авто: "     . ($car   !== '' ? $car   : '—'),
@@ -193,14 +202,47 @@ $lines = [
     "Калькулятор: {$cSum} на {$cTerm}, авто {$cCar}",
     "Страница: " . ($page !== '' ? $page : '/'),
 ];
-if ($utm)  $lines[] = "Метки: " . implode(' · ', $utm);
+if ($utm)      $lines[] = "Метки: " . implode(' · ', $utm);
+if ($yclid)    $lines[] = "yclid: " . $yclid;
+if ($attrDate) $lines[] = "Пришёл из рекламы: " . date('d.m.Y', strtotime($attrDate));
+if ($clientId) $lines[] = "ClientID Метрики: " . $clientId;
 $lines[] = "Время: " . date('d.m.Y H:i');
+
+// ---- Журнал ----
+// Пишется первым: это запись, которая остаётся при любой судьбе уведомлений.
+// Excel исполняет ячейки, начинающиеся с = + - @, как формулы — экранируем.
+$csvSafe = function ($v) {
+    return preg_match('/^[=+\-@]/', (string)$v) ? "'" . $v : $v;
+};
+$sent = false;
+$logFile = null;
+$logErrors = [];
+foreach ($LOG_DIRS as $dir) {
+    $path = $dir . '/leads.csv';
+    $fh = @fopen($path, 'a');
+    if (!$fh) {
+        $e = error_get_last();
+        $logErrors[] = $path . ': ' . ($e ? $e['message'] : 'fopen не удался');
+        continue;
+    }
+    if (fstat($fh)['size'] === 0) {
+        fputcsv($fh, ['id', 'datetime', 'name', 'phone', 'car', 'amount', 'calc_sum', 'calc_term',
+            'page', 'utm', 'yclid', 'client_id', 'ad_date', 'ip'], ',', '"', '');
+    }
+    $row = [$leadId, date('Y-m-d H:i:s'), $name, $phone, $car, $sum, $cSum, $cTerm, $page,
+        implode(' ', $utm), $yclid, $clientId, $attrDate, $ip];
+    fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
+    fclose($fh);
+    $logFile = $path;
+    $sent = true;
+    break;
+}
+$lines[] = $logFile ? "Журнал: записано" : "⚠ Журнал не записан: " . implode('; ', $logErrors);
 $text = implode("\n", $lines);
 
 // ---- Telegram ----
 // Из России api.telegram.org часто недоступен. Чтобы посетитель не ждал
 // таймаута на каждой заявке, после неудачи канал отключается на 10 минут.
-$sent = false;
 $breaker = $logDir . '/telegram-down.txt';
 $tgMuted = is_file($breaker) && (time() - (int)@file_get_contents($breaker) < 600);
 
@@ -215,8 +257,8 @@ if ($TG_TOKEN && $TG_CHAT && !$tgMuted) {
     ];
     if ($TG_IPV6) $opts[CURLOPT_IPRESOLVE] = CURL_IPRESOLVE_V6;
     curl_setopt_array($ch, $opts);
-    $sent = curl_exec($ch) !== false && curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
-    if ($sent) { @unlink($breaker); } else { @file_put_contents($breaker, time()); }
+    $tgOk = curl_exec($ch) !== false && curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
+    if ($tgOk) { $sent = true; @unlink($breaker); } else { @file_put_contents($breaker, time()); }
 }
 
 // ---- SMS (sms.ru) ----
@@ -241,42 +283,35 @@ if ($SMS_API_ID && $SMS_TO) {
 }
 
 // ---- Почта ----
+// В mail_to можно указать несколько адресов через запятую — письмо уйдёт всем.
+$mailTo = array_values(array_filter(array_map('trim', preg_split('/[,;]/', (string)$MAIL_TO)),
+    function ($a) { return filter_var($a, FILTER_VALIDATE_EMAIL); }));
+$subject = 'Заявка ' . $leadId . ': ' . $phone;
 $mailOk = false;
 $mailErr = null;
-if ($MAIL_TO && $SMTP_HOST && $SMTP_USER && $SMTP_PASS) {
+if ($mailTo && $SMTP_HOST && $SMTP_USER && $SMTP_PASS) {
     $r = smtp_send($SMTP_HOST, $SMTP_PORT, $SMTP_SECURE, $SMTP_USER, $SMTP_PASS,
-        $MAIL_FROM ?: $SMTP_USER, 'Сайт', $MAIL_TO, 'Заявка с сайта: ' . $phone, $text);
+        $MAIL_FROM ?: $SMTP_USER, 'Сайт', $mailTo, $subject, $text);
     $mailOk = $r['ok'];
     if (!$mailOk) $mailErr = $r['error'];
     if ($mailOk) $sent = true;
-} elseif ($MAIL_TO && $MAIL_FROM) {
+} elseif ($mailTo && $MAIL_FROM) {
     // Резервный путь без авторизации — используется, только если SMTP не настроен.
     // Менее надёжен: письма могут не доходить без явной авторизации на некоторых хостингах.
     $utf = function ($s) { return '=?UTF-8?B?' . base64_encode($s) . '?='; };
     $headers  = "From: " . $utf('Сайт') . " <{$MAIL_FROM}>\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
-    $mailOk = @mail($MAIL_TO, $utf('Заявка с сайта: ' . $phone), $text, $headers);
+    $mailOk = @mail(implode(', ', $mailTo), $utf($subject), $text, $headers);
     if (!$mailOk) $mailErr = 'mail() вернул false';
     if ($mailOk) $sent = true;
 }
 
-// ---- Журнал ----
-// Excel исполняет ячейки, начинающиеся с = + - @, как формулы — экранируем.
-$csvSafe = function ($v) {
-    return preg_match('/^[=+\-@]/', (string)$v) ? "'" . $v : $v;
-};
-if ($fh = @fopen($LOG_FILE, 'a')) {
-    $row = [date('Y-m-d H:i:s'), $name, $phone, $car, $sum, $cSum, $cTerm, $page, implode(' ', $utm), $ip];
-    fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
-    fclose($fh);
-    $sent = true;
-}
-
 if (!$sent) {
     http_response_code(500);
-    // 'debug' помогает диагностировать доставку почты; уберите поле, когда всё заработает стабильно.
-    exit(json_encode(['ok' => false, 'error' => 'delivery', 'debug' => ['mail_ok' => $mailOk, 'mail_error' => $mailErr]]));
+    exit(json_encode(['ok' => false, 'error' => 'delivery', 'debug' => [
+        'mail_ok' => $mailOk, 'mail_error' => $mailErr, 'log_errors' => $logErrors,
+    ]]));
 }
 
-echo json_encode(['ok' => true]);
+echo json_encode(['ok' => true, 'id' => $leadId]);
