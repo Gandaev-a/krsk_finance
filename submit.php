@@ -164,11 +164,32 @@ $cTerm = clean('calc_term', 20);
 $cCar  = clean('calc_car', 40);
 $page  = clean('page', 200);
 
-// Телефон обязателен и должен содержать не меньше 10 цифр.
-$digits = preg_replace('/\D+/', '', $phone);
-if (strlen($digits) < 10) {
+// Все поля обязательны. Правила совпадают с проверкой в index.html.
+function bad_field($field) {
     http_response_code(422);
-    exit(json_encode(['ok' => false, 'error' => 'phone']));
+    exit(json_encode(['ok' => false, 'error' => $field]));
+}
+function squash($v) { return trim(preg_replace('/\s+/u', ' ', $v)); }
+function letter_count($v) { return preg_match_all('/\p{L}/u', $v); }
+// три одинаковых символа подряд, кроме цифр («ВАЗ 2111», «2000» — нормально)
+function has_triple($v) { return (bool)preg_match('/([^\d\s])\1\1/u', mb_strtolower($v, 'UTF-8')); }
+
+$name = squash($name);
+$car  = squash($car);
+
+// Телефон: ровно 11 цифр (+7 и 10) или 10 без кода страны.
+$digits = preg_replace('/\D+/', '', $phone);
+if (!(strlen($digits) === 11 && ($digits[0] === '7' || $digits[0] === '8')) && strlen($digits) !== 10) {
+    bad_field('phone');
+}
+if (!preg_match('/^\p{L}[\p{L}\s\-]*$/u', $name) || letter_count($name) < 2 || has_triple($name)) {
+    bad_field('name');
+}
+if (mb_strlen($car, 'UTF-8') < 10 || letter_count($car) < 3 || has_triple($car)) {
+    bad_field('car');
+}
+if ($sum === '') {
+    bad_field('amount');
 }
 
 // Без согласия на обработку ПДн заявку не принимаем, даже если форму обошли.

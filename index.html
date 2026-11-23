@@ -282,6 +282,9 @@ details .answer p:last-child{margin-bottom:0}
 .consent input{width:17px;height:17px;margin-top:2px;accent-color:var(--blue)}
 .consent a{color:var(--ink-2)}
 .form-card .btn{width:100%}
+.form-card input.bad{border-color:#B5701F}
+.field-err{font-size:13px;color:#8F5410;display:none}
+.field-err.show{display:block}
 .form-status{font-size:14px;font-weight:600;color:var(--blue);margin-top:14px;display:none}
 .form-side ul{list-style:none;padding:0;margin:22px 0 0;display:flex;flex-direction:column;gap:14px}
 .form-side li{display:grid;grid-template-columns:22px 1fr;gap:11px;font-size:15px;color:var(--ink-2)}
@@ -688,19 +691,22 @@ footer a:hover{color:#fff}
       <form class="form-card rv" id="leadForm" novalidate>
         <div class="row">
           <label for="fname">Как к вам обращаться</label>
-          <input type="text" id="fname" name="name" placeholder="Имя" autocomplete="given-name" required>
+          <input type="text" id="fname" name="name" placeholder="Имя" autocomplete="given-name" required minlength="2" maxlength="80" aria-describedby="fnameErr">
+          <span class="field-err" id="fnameErr" role="alert"></span>
         </div>
         <div class="row">
           <label for="fphone">Телефон</label>
-          <input type="tel" id="fphone" name="phone" placeholder="+7 (___) ___-__-__" autocomplete="tel" required>
+          <input type="tel" id="fphone" name="phone" placeholder="+7 (___) ___-__-__" autocomplete="tel" required aria-describedby="fphoneErr">
+          <span class="field-err" id="fphoneErr" role="alert"></span>
         </div>
         <div class="row">
           <label for="fcar">Автомобиль</label>
-          <input type="text" id="fcar" name="car" placeholder="Марка, модель, год — например Toyota Camry 2018">
+          <input type="text" id="fcar" name="car" placeholder="Марка, модель, год — например Toyota Camry 2018" required minlength="10" maxlength="120" aria-describedby="fcarErr">
+          <span class="field-err" id="fcarErr" role="alert"></span>
         </div>
         <div class="row">
           <label for="fsum">Нужная сумма</label>
-          <select id="fsum" name="amount">
+          <select id="fsum" name="amount" required>
             <option>до 300 000 ₽</option>
             <option selected>300 000 — 700 000 ₽</option>
             <option>700 000 — 1 500 000 ₽</option>
@@ -966,14 +972,55 @@ footer a:hover{color:#fff}
     if (e.target.closest('a[href^="tel:"]')) goal('phone');
   });
 
+  // Проверка полей формы. Те же правила повторены в submit.php —
+  // обойти их, отправив запрос в обход страницы, не получится.
+  function squash(v){ return v.replace(/\s+/g, ' ').trim(); }
+  // три одинаковых символа подряд (кроме цифр: «2111», «2000» — нормальные модели и годы)
+  function hasTriple(v){ return /([^\d\s])\1\1/i.test(v.toLowerCase()); }
+  function letters(v){ return (v.match(/[a-zа-яё]/gi) || []).length; }
+  function fieldError(id, raw){
+    var v = squash(raw);
+    if (id === 'fname'){
+      if (!v) return 'Укажите имя';
+      if (!/^[a-zа-яё][a-zа-яё\s\-]*$/i.test(v) || letters(v) < 2) return 'Имя — только буквы, не короче 2';
+      if (hasTriple(v)) return 'Проверьте имя: три одинаковые буквы подряд';
+    }
+    if (id === 'fphone'){
+      if (raw.replace(/\D/g, '').length !== 11) return 'Введите номер полностью: +7 и 10 цифр';
+    }
+    if (id === 'fcar'){
+      if (!v) return 'Укажите автомобиль';
+      if (v.length < 10 || letters(v) < 3) return 'Напишите марку, модель и год — не короче 10 символов';
+      if (hasTriple(v)) return 'Проверьте написание: три одинаковых символа подряд';
+    }
+    return '';
+  }
+  function setErr(el, msg){
+    var box = document.getElementById(el.id + 'Err');
+    el.classList.toggle('bad', !!msg);
+    el.setAttribute('aria-invalid', msg ? 'true' : 'false');
+    box.textContent = msg;
+    box.classList.toggle('show', !!msg);
+  }
+  // ошибка снимается, как только поле исправлено
+  ['fname','fphone','fcar'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('input', function(){ if (el.classList.contains('bad')) setErr(el, fieldError(id, el.value)); });
+  });
+
   var form = document.getElementById('leadForm');
   var status = document.getElementById('formStatus');
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
-    var phone = document.getElementById('fphone');
     var ok = document.getElementById('fconsent');
-    if (!phone.value.trim()){ phone.focus(); phone.style.borderColor = '#B5701F'; return; }
+    var firstBad = null;
+    ['fname','fphone','fcar'].forEach(function(id){
+      var el = document.getElementById(id), msg = fieldError(id, el.value);
+      setErr(el, msg);
+      if (msg && !firstBad) firstBad = el;
+    });
+    if (firstBad){ firstBad.focus(); return; }
     if (!ok.checked){ ok.focus(); return; }
 
     var btn = form.querySelector('button[type=submit]');
@@ -1001,8 +1048,20 @@ footer a:hover{color:#fff}
     if (clientId) data.append('client_id', clientId);
 
     fetch('/submit.php', {method:'POST', body:data})
-      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(r){
+        if (r.status === 422) return r.json().then(function(j){
+          // сервер отклонил поле — показываем ошибку у него, а не «не удалось отправить»
+          var el = document.getElementById({name:'fname', phone:'fphone', car:'fcar'}[j && j.error]);
+          if (!el) throw new Error(422);
+          setErr(el, fieldError(el.id, el.value) || 'Проверьте это поле');
+          el.focus();
+          btn.disabled = false; btn.textContent = 'Отправить заявку';
+          return null;
+        });
+        if(!r.ok) throw new Error(r.status); return r.json();
+      })
       .then(function(res){
+        if (res === null) return;
         status.style.color = '';
         status.textContent = (res && res.id ? 'Заявка ' + res.id + ' отправлена.' : 'Заявка отправлена.') + ' Перезвоним в течение 15 минут.';
         status.style.display = 'block';
