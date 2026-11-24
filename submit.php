@@ -268,9 +268,10 @@ $csvSafe = function ($v) {
 };
 if ($fh = @fopen($LOG_FILE, 'a')) {
     $row = [date('Y-m-d H:i:s'), $name, $phone, $car, $sum, $cSum, $cTerm, $page, implode(' ', $utm), $ip];
-    fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
-    fclose($fh);
-    $sent = true;
+    $written = fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
+    $saved = $written > 0 && fflush($fh);
+    $closed = fclose($fh);
+    if ($saved && $closed) $sent = true;
 }
 
 if (!$sent) {
