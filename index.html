@@ -720,7 +720,7 @@ footer a:hover{color:#fff}
           <span>Даю <a href="consent.html" target="_blank" rel="noopener">согласие на обработку персональных данных</a>, ознакомлен с <a href="privacy.html" target="_blank" rel="noopener">политикой обработки данных</a> и принимаю <a href="terms.html" target="_blank" rel="noopener">пользовательское соглашение</a>.</span>
         </label>
         <button class="btn btn-primary" type="submit">Отправить заявку</button>
-        <p class="form-status" id="formStatus">Заявка отправлена. Перезвоним в течение 15 минут.</p>
+        <p class="form-status" id="formStatus">Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.</p>
       </form>
     </div>
   </div>
@@ -1063,7 +1063,7 @@ footer a:hover{color:#fff}
       .then(function(res){
         if (res === null) return;
         status.style.color = '';
-        status.textContent = (res && res.id ? 'Заявка ' + res.id + ' отправлена.' : 'Заявка отправлена.') + ' Перезвоним в течение 15 минут.';
+        status.textContent = (res && res.id ? 'Заявка ' + res.id + ' отправлена.' : 'Заявка отправлена.') + ' Перезвоним в течение 15 минут в рабочее время.';
         status.style.display = 'block';
         btn.textContent = 'Отправлено';
         goal('lead', res && res.id ? {lead_id: res.id} : undefined);
