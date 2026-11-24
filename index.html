@@ -26,22 +26,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 
-<!-- Yandex.Metrika counter: считаем только боевой домен, демо на GitHub Pages статистику не портит -->
-<script type="text/javascript">
-  var METRIKA_ID = 112863227;
-  if (/(^|\.)avtozalog-krsk\.ru$/.test(location.hostname)) {
-    (function(m,e,t,r,i,k,a){
-        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-        m[i].l=1*new Date();
-        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=' + METRIKA_ID, 'ym');
-
-    ym(METRIKA_ID, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
-  }
-</script>
-<!-- /Yandex.Metrika counter -->
-
 <style>
 :root{
   --white:#FFFFFF;
@@ -314,12 +298,21 @@ footer a:hover{color:#fff}
   box-shadow:0 12px 40px -12px rgba(13,27,36,.6);max-width:760px;margin:0 auto;
 }
 .cookie.show{display:flex}
+.cookie-actions{display:flex;gap:8px}
+.cookie-settings{
+  border:0;background:none;color:inherit;font:inherit;text-align:left;
+  padding:0;cursor:pointer;text-decoration:underline;
+}
+.cookie-settings:hover{color:#fff}
+.cookie-settings:focus-visible,.cookie button:focus-visible{outline-color:#fff}
 .cookie a{color:#8FD9F0}
 .cookie button{
   flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:5px;
   padding:10px 20px;font-family:"Manrope",sans-serif;font-weight:700;font-size:14px;cursor:pointer;
 }
 .cookie button:hover{background:var(--blue-hi)}
+.cookie #cookieReject{background:transparent;box-shadow:inset 0 0 0 1px #8b9891}
+.cookie #cookieReject:hover{background:#ffffff14}
 
 /* mobile sticky bar */
 .mobile-bar{
@@ -358,7 +351,8 @@ footer a:hover{color:#fff}
   .g2{grid-template-columns:1fr}
   .mobile-bar{display:flex}
   .cookie{flex-direction:column;align-items:flex-start;gap:12px;bottom:88px;font-size:13px}
-  .cookie button{width:100%}
+  .cookie-actions{width:100%}
+  .cookie-actions button{flex:1;padding:10px 8px}
   .nav-phone small{display:none}
   .res-main b{font-size:21px}
   .res-row{font-size:13.5px;gap:12px}
@@ -374,7 +368,6 @@ footer a:hover{color:#fff}
 </style>
 </head>
 <body>
-<noscript><div><img src="https://mc.yandex.ru/watch/112863227" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 
 <header>
   <div class="wrap nav">
@@ -685,18 +678,18 @@ footer a:hover{color:#fff}
         </div>
       </div>
 
-      <form class="form-card rv" id="leadForm" novalidate>
+      <form class="form-card rv ym-hide-content" id="leadForm" novalidate>
         <div class="row">
           <label for="fname">Как к вам обращаться</label>
-          <input type="text" id="fname" name="name" placeholder="Имя" autocomplete="given-name" required>
+          <input class="ym-disable-keys" type="text" id="fname" name="name" placeholder="Имя" autocomplete="given-name" required>
         </div>
         <div class="row">
           <label for="fphone">Телефон</label>
-          <input type="tel" id="fphone" name="phone" placeholder="+7 (___) ___-__-__" autocomplete="tel" required>
+          <input class="ym-disable-keys" type="tel" id="fphone" name="phone" placeholder="+7 (___) ___-__-__" autocomplete="tel" required>
         </div>
         <div class="row">
           <label for="fcar">Автомобиль</label>
-          <input type="text" id="fcar" name="car" placeholder="Марка, модель, год — например Toyota Camry 2018">
+          <input class="ym-disable-keys" type="text" id="fcar" name="car" placeholder="Марка, модель, год — например Toyota Camry 2018">
         </div>
         <div class="row">
           <label for="fsum">Нужная сумма</label>
@@ -714,7 +707,7 @@ footer a:hover{color:#fff}
           <span>Даю <a href="consent.html" target="_blank" rel="noopener">согласие на обработку персональных данных</a>, ознакомлен с <a href="privacy.html" target="_blank" rel="noopener">политикой обработки данных</a> и принимаю <a href="terms.html" target="_blank" rel="noopener">пользовательское соглашение</a>.</span>
         </label>
         <button class="btn btn-primary" type="submit">Отправить заявку</button>
-        <p class="form-status" id="formStatus">Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.</p>
+        <p class="form-status" id="formStatus" role="status">Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.</p>
       </form>
     </div>
   </div>
@@ -751,6 +744,7 @@ footer a:hover{color:#fff}
           <a href="terms.html">Пользовательское соглашение</a>
           <a href="tariffs.html">Тарифы и условия займов</a>
           <a href="dogovor.html">Образец договора займа</a>
+          <button type="button" class="cookie-settings" id="cookieSettings" aria-controls="cookieBar" aria-expanded="false" hidden>Настройки аналитики</button>
         </div>
       </div>
     </div>
@@ -768,10 +762,13 @@ footer a:hover{color:#fff}
   </div>
 </footer>
 
-<div class="cookie" id="cookieBar">
-  <span>Сайт использует файлы cookie и сервис веб-аналитики для оценки удобства страниц. Подробнее — в <a href="privacy.html">политике обработки персональных данных</a>.</span>
-  <button type="button" id="cookieOk">Понятно</button>
-</div>
+<section class="cookie" id="cookieBar" aria-label="Настройки аналитики">
+  <span>Разрешить Яндекс Метрике собирать статистику посещений и записывать действия на сайте? <a href="privacy.html">Политика обработки данных</a></span>
+  <div class="cookie-actions">
+    <button type="button" id="cookieReject">Отказаться</button>
+    <button type="button" id="cookieAccept">Разрешить</button>
+  </div>
+</section>
 
 <div class="mobile-bar">
   <a class="btn btn-ghost" href="tel:+79233332195">Позвонить</a>
@@ -933,9 +930,67 @@ footer a:hover{color:#fff}
 
   render();
 
+  // ---- настройки аналитики ----
+  var consentKey = 'analyticsConsent';
+  var analyticsChoice;
+  try { analyticsChoice = localStorage.getItem(consentKey); } catch (e) {}
+  var metrikaId = 112863227;
+  var production = /(^|\.)avtozalog-krsk\.ru$/.test(location.hostname);
+  var metrikaActive = false;
+
+  function startMetrika(){
+    if (!production || metrikaActive) return;
+    metrikaActive = true;
+    if (!window.ym) {
+      window.ym = function(){ (window.ym.a = window.ym.a || []).push(arguments); };
+      window.ym.l = Date.now();
+      var tag = document.createElement('script');
+      tag.async = true;
+      tag.src = 'https://mc.yandex.ru/metrika/tag.js?id=' + metrikaId;
+      document.head.appendChild(tag);
+    }
+
+    window.ym(metrikaId, 'init', {
+      ssr:true, webvisor:true, clickmap:true, ecommerce:'dataLayer',
+      referrer:document.referrer, url:location.href, accurateTrackBounce:true, trackLinks:true
+    });
+  }
+
+  var cookieBar = document.getElementById('cookieBar');
+  var cookieSettings = document.getElementById('cookieSettings');
+  var openedSettings = false;
+  function showCookieBar(show){
+    cookieBar.classList.toggle('show', show);
+    cookieSettings.setAttribute('aria-expanded', String(show));
+  }
+  function setAnalytics(choice){
+    analyticsChoice = choice;
+    try { localStorage.setItem(consentKey, choice); } catch (e) {}
+    if (choice === 'accepted') {
+      startMetrika();
+    } else if (metrikaActive) {
+      metrikaActive = false;
+      window.ym(metrikaId, 'destruct');
+    }
+    showCookieBar(false);
+    if (openedSettings) cookieSettings.focus();
+    openedSettings = false;
+  }
+
+  cookieSettings.hidden = false;
+  if (analyticsChoice === 'accepted') startMetrika();
+  showCookieBar(analyticsChoice !== 'accepted' && analyticsChoice !== 'declined');
+  cookieSettings.addEventListener('click', function(){
+    openedSettings = true;
+    showCookieBar(true);
+    document.getElementById('cookieReject').focus();
+  });
+  document.getElementById('cookieAccept').addEventListener('click', function(){ setAnalytics('accepted'); });
+  document.getElementById('cookieReject').addEventListener('click', function(){ setAnalytics('declined'); });
+
   // ---- форма ----
   function goal(name){
-    if (window.ym) ym(METRIKA_ID, 'reachGoal', name);
+    if (metrikaActive) window.ym(metrikaId, 'reachGoal', name);
   }
 
   // звонок — отдельная цель: в нише половина обращений идёт по телефону
@@ -962,7 +1017,7 @@ footer a:hover{color:#fff}
     var isDemo = location.protocol === 'file:' || /github\.io$/.test(location.hostname);
     if (isDemo) {
       status.style.color = '';
-      status.textContent = 'Демо-версия: заявка никуда не отправлена. На рабочем сайте она уйдёт в Telegram за секунду.';
+      status.textContent = 'Демо-версия. Введённые данные остались в браузере.';
       status.style.display = 'block';
       btn.textContent = 'Проверено';
       return;
@@ -980,12 +1035,16 @@ footer a:hover{color:#fff}
 
     fetch('/submit.php', {method:'POST', body:data})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function(){
+      .then(function(result){
+        if (!result || result.ok !== true) throw new Error('lead');
+        var notified = result.notified !== false;
         status.style.color = '';
-        status.textContent = 'Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.';
+        status.textContent = notified
+          ? 'Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.'
+          : 'Заявка сохранена. Если ответ нужен срочно, позвоните нам: +7 923 333-21-95.';
         status.style.display = 'block';
-        btn.textContent = 'Отправлено';
-        goal('lead');
+        btn.textContent = notified ? 'Отправлено' : 'Сохранено';
+        if (notified) goal('lead');
       })
       .catch(function(){
         status.style.color = '#B5701F';
@@ -1007,16 +1066,6 @@ footer a:hover{color:#fff}
     if (d.length >= 8) out += '-' + d.slice(7,9);
     if (d.length >= 10) out += '-' + d.slice(9,11);
     e.target.value = out;
-  });
-
-  // ---- уведомление о cookie ----
-  var bar = document.getElementById('cookieBar');
-  try {
-    if (!localStorage.getItem('cookieOk')) bar.classList.add('show');
-  } catch(e) { bar.classList.add('show'); }
-  document.getElementById('cookieOk').addEventListener('click', function(){
-    bar.classList.remove('show');
-    try { localStorage.setItem('cookieOk', '1'); } catch(e) {}
   });
 
   // ---- появление блоков ----
