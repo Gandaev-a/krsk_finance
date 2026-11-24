@@ -252,8 +252,13 @@ foreach ($LOG_DIRS as $dir) {
     }
     $row = [$leadId, date('Y-m-d H:i:s'), $name, $phone, $car, $sum, $cSum, $cTerm, $page,
         implode(' ', $utm), $yclid, $clientId, $attrDate, $ip];
-    fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
-    fclose($fh);
+    $written = fputcsv($fh, array_map($csvSafe, $row), ',', '"', '');
+    $saved = $written > 0 && fflush($fh);
+    $closed = fclose($fh);
+    if (!$saved || !$closed) {
+        $logErrors[] = $path . ': ошибка записи';
+        continue;
+    }
     $logFile = $path;
     $sent = true;
     break;
