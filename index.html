@@ -713,7 +713,7 @@ footer a:hover{color:#fff}
           <span>Даю <a href="consent.html" target="_blank" rel="noopener">согласие на обработку персональных данных</a>, ознакомлен с <a href="privacy.html" target="_blank" rel="noopener">политикой обработки данных</a> и принимаю <a href="terms.html" target="_blank" rel="noopener">пользовательское соглашение</a>.</span>
         </label>
         <button class="btn btn-primary" type="submit">Отправить заявку</button>
-        <p class="form-status" id="formStatus">Заявка отправлена. Перезвоним в течение 15 минут.</p>
+        <p class="form-status" id="formStatus">Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.</p>
       </form>
     </div>
   </div>
@@ -981,7 +981,7 @@ footer a:hover{color:#fff}
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(){
         status.style.color = '';
-        status.textContent = 'Заявка отправлена. Перезвоним в течение 15 минут.';
+        status.textContent = 'Заявка отправлена. Перезвоним в течение 15 минут в рабочее время.';
         status.style.display = 'block';
         btn.textContent = 'Отправлено';
         goal('lead');
@@ -997,8 +997,9 @@ footer a:hover{color:#fff}
 
   // маска телефона
   document.getElementById('fphone').addEventListener('input', function(e){
-    var d = e.target.value.replace(/\D/g,'').replace(/^8/,'7').slice(0,11);
+    var d = e.target.value.replace(/\D/g,'');
     if (!d.length){ e.target.value = ''; return; }
+    d = (d[0] === '8' ? '7' + d.slice(1) : d[0] === '7' ? d : '7' + d).slice(0,11);
     var out = '+7';
     if (d.length > 1) out += ' (' + d.slice(1,4);
     if (d.length >= 5) out += ') ' + d.slice(4,7);
